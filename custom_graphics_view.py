@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QGraphicsView, QRubberBand
 from PyQt5.QtCore import Qt, QRect, QPoint, QSize
-from .mouse_state import MouseState
+from mouse_state import MouseState
+
 
 class CustomGraphicsView(QGraphicsView):
     # This is basically the viewport. So stuff involving panning, selections, mouse inputs usually goes here.
@@ -11,29 +12,29 @@ class CustomGraphicsView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)  # Keeps transformations (zooming, panning) centered around the cursor.
 
         # Init the rubber band selection box
-        #self.rubber_band = QRubberBand(QRubberBand.Rectangle, self)
-        #self.rubber_band_origin = QPoint()
+        # self.rubber_band = QRubberBand(QRubberBand.Rectangle, self)
+        # self.rubber_band_origin = QPoint()
 
         # Variables for panning
         self.last_mouse_pos = QPoint(0, 0)
 
     def mousePressEvent(self, event):
-        """Handles all mouse presses for skill nodes, panning, and menus."""
-        view_pos = event.pos()  # Coordinates relative to the QGraphicsView which is the viewport. Panning doesnt change these
+        # Handles all mouse presses
+        view_pos = event.pos()  # Coordinates relative to the QGraphicsView which is the viewport. Panning doesn't change these
 
         if event.button() == Qt.MiddleButton:
             # Panning
             self.main_window.mouse_state = MouseState.PANNING
-            self.main_window.update_mouse_state_label()  # ✅ Update label
+            self.main_window.update_mouse_state_label()
             self.last_mouse_pos = view_pos
             self.setCursor(Qt.ClosedHandCursor)
-            return  # ✅ Stops further processing (doesn't interfere with dragging)
+            return
 
         elif event.button() == Qt.LeftButton:
             # Begin rubber band selection as long as not in the middle of dragging
-            #self.rubber_band_origin = view_pos  # ✅ Start rubber band selection
-            #self.rubber_band.setGeometry(QRect(self.rubber_band_origin, QSize(0,0)))
-            #self.rubber_band.show()
+            # self.rubber_band_origin = view_pos
+            # self.rubber_band.setGeometry(QRect(self.rubber_band_origin, QSize(0,0)))
+            # self.rubber_band.show()
             # Tell main window there was a left click press
             self.main_window.on_left_click_press(view_pos)
             return
@@ -49,11 +50,16 @@ class CustomGraphicsView(QGraphicsView):
             self.last_mouse_pos = view_pos
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
-        #elif self.rubber_band.isVisible():
+        # elif self.rubber_band.isVisible():
         #    # If doing a rubber band select, update the size of the rectangle
         #    self.rubber_band.setGeometry(QRect(self.rubber_band_origin, view_pos).normalized())
         elif self.main_window.dragging_nodes:
             self.main_window.on_left_click_drag(event)
+
+        elif (self.main_window.mouse_state == MouseState.SELECTING_PREREQ or
+              self.main_window.mouse_state == MouseState.SELECTING_POSTREQ) and self.main_window.temp_line:
+            scene_pos = self.mapToScene(view_pos)
+            self.main_window.temp_line.update_position(mouse_pos=scene_pos)
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -62,13 +68,13 @@ class CustomGraphicsView(QGraphicsView):
             # Stop panning if release middle mouse
             self.main_window.mouse_state = MouseState.IDLE
 
-            self.main_window.update_mouse_state_label()  # ✅ Update label
+            self.main_window.update_mouse_state_label()
             self.setCursor(Qt.ArrowCursor)
 
         elif event.button() == Qt.LeftButton:
             # Stop rubber band if release left click
-            self.main_window.on_left_click_release(view_pos)  # ✅ Handle selection
-            #self.rubber_band.hide()  # ✅ Hide rubber band
+            self.main_window.on_left_click_release(view_pos)
+            # self.rubber_band.hide()
 
         elif event.button() == Qt.RightButton:
             self.main_window.on_right_click_release(view_pos)
@@ -78,6 +84,5 @@ class CustomGraphicsView(QGraphicsView):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Delete:
             if self.main_window:
-                print("okay, calling function")
                 self.main_window.delete_selected_nodes()
         super().keyPressEvent(event)

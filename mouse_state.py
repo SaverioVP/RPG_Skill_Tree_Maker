@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class MouseState(Enum):
     IDLE = 0
     DRAGGING = 1
