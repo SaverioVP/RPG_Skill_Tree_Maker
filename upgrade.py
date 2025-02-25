@@ -1,9 +1,14 @@
 class Upgrade:
     # Base upgrade that can contain various upgrade types
-
-    def __init__(self, node_id=None):
-        self.name = f"Node {node_id}" if node_id is not None else "Unnamed Node"
-        self.description = "im a description!"
+    class Upgrade_Type:
+        WEAPON_UNLOCK = "Weapon Unlock"
+        CLASS_UNLOCK = "Class Unlock"
+        ACTIVE_ABILITY = "Active Ability"
+        PASSIVE_ABILITY = "Passive Ability"
+    def __init__(self, name, description, upgrade_type):
+        self.name = name
+        self.description = description
+        self.upgrade_type = upgrade_type
 
     def set_description(self, new_description):
         self.description = new_description

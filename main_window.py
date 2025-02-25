@@ -14,7 +14,7 @@ from mouse_state import MouseState
 from connection_line import ConnectionLine
 import json
 import os  # To check if the save file exists
-
+from upgrade import Upgrade
 
 class MainWindow(QMainWindow):
     #  MainWindow is the entire application, which includes:
@@ -303,7 +303,8 @@ class MainWindow(QMainWindow):
                 "y": node.pos().y(),
                 "upgrade": {
                     "name": node.upgrade.name,
-                    "description": node.upgrade.description
+                    "description": node.upgrade.description,
+                    "upgrade_type": node.upgrade.upgrade_type
                 },
                 "prerequisites": [prereq.node_id for prereq in node.prerequisites],
                 "postrequisites": [postreq.node_id for postreq in node.postrequisites]
@@ -370,11 +371,12 @@ class MainWindow(QMainWindow):
             x, y = node_data["x"], node_data["y"]
             upgrade_name = node_data["upgrade"]["name"]
             upgrade_desc = node_data["upgrade"]["description"]
-
+            upgrade_type = node_data["upgrade"].get("upgrade_type", Upgrade.Upgrade_Type.PASSIVE_ABILITY)  # Default if missing. needed for first load after changes
             # Create new skill node with its saved ID
             node = SkillNode(self, x, y, node_id=node_id)
             node.upgrade.name = upgrade_name
             node.upgrade.description = upgrade_desc
+            node.change_upgrade_type(upgrade_type)
             self.scene.addItem(node)
             node_list[node_id] = node  # Store for linking later
 

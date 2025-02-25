@@ -6,12 +6,9 @@ from connection_line import ConnectionLine
 
 
 class SkillNode(QGraphicsEllipseItem):
-    def __init__(self, main_window, x, y, upgrade=None, node_id=None):
+    def __init__(self, main_window, x, y, node_id=None):
         super().__init__(-20, -20, 40, 40)  # Bounding box of ellipse is 40,40 and center is at 0,0 (-20, -20 top left)
         self.main_window = main_window
-
-
-        self.setBrush(QBrush(QColor(100, 100, 255)))
 
         self.default_pen = QPen(Qt.black, 2)  # Default black outline
         self.hover_pen = QPen(QColor(255, 215, 0), 3)  # Gold outline when hovered
@@ -43,8 +40,25 @@ class SkillNode(QGraphicsEllipseItem):
             self.main_window.current_node_id += 1
 
         # Each node starts with an empty upgrade
-        self.upgrade = Upgrade(node_id=self.node_id)
+        self.upgrade = Upgrade(
+            name=f"Upgrade {self.node_id}",  # Default name based on node ID
+            description="Default Upgrade Description",
+            upgrade_type=Upgrade.Upgrade_Type.PASSIVE_ABILITY,
+        )
+        self.update_color()  # Set initial color based on upgrade type
 
+    def update_color(self):
+        color_map = {
+            Upgrade.Upgrade_Type.WEAPON_UNLOCK: QColor(139, 69, 19),   # Brown
+            Upgrade.Upgrade_Type.CLASS_UNLOCK: QColor(30, 144, 255),   # Blue
+            Upgrade.Upgrade_Type.ACTIVE_ABILITY: QColor(220, 20, 60),  # Red
+            Upgrade.Upgrade_Type.PASSIVE_ABILITY: QColor(34, 139, 34)  # Green
+        }
+        self.setBrush(QBrush(color_map.get(self.upgrade.upgrade_type, QColor(100, 100, 100))))  # Default Gray if unknown
+
+    def change_upgrade_type(self, new_type):
+        self.upgrade.upgrade_type = new_type
+        self.update_color()
 
     def on_left_click_pressed(self):
         print(f"Clicked on {self.skill_type} skill node!")
@@ -66,7 +80,8 @@ class SkillNode(QGraphicsEllipseItem):
         postreq_text = ", ".join(self.get_postrequisite_names()) or "None"
 
         description = f"Node ID: {self.node_id}\n"
-        description += f"Upgrade: {self.upgrade.name}\n{self.upgrade.description}\n"
+        description += f"{self.upgrade.upgrade_type}: {self.upgrade.name}\n"
+        description += f"{self.upgrade.description}\n"
         description += f"Prerequisites: {prereq_text}\nPostrequisites: {postreq_text}"
 
 
