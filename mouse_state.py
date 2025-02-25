@@ -7,3 +7,4 @@ class MouseState(Enum):
     PANNING = 2
     SELECTING_PREREQ = 3
     SELECTING_POSTREQ = 4
+    DELETING_CONNECTIONS = 5

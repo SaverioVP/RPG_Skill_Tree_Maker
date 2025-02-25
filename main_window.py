@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPen, QFont, QBrush, QColor
 from PyQt5.QtCore import Qt
-
+from datetime import datetime
 from skill_node import SkillNode
 from custom_graphics_view import CustomGraphicsView
 from tooltip import Tooltip
@@ -28,7 +28,7 @@ class MainWindow(QMainWindow):
 
         # Set up the Scene.  self.scene = A canvas that holds all skill nodes.
         self.scene = QGraphicsScene()
-        self.scene.setSceneRect(0, 0, 2000, 2000)  # Size of the Scene (need to scroll to get to extents)
+        self.scene.setSceneRect(0, 0, 20000, 20000)  # Size of the Scene (need to scroll to get to extents)
 
         # Griddu
         self.GRID_SIZE = 60
@@ -121,7 +121,7 @@ class MainWindow(QMainWindow):
             for item in clicked_items:
                 if isinstance(item, SkillNode):
                     # Check for selecting a prereq
-                    if self.mouse_state == MouseState.SELECTING_PREREQ or self.mouse_state == MouseState.SELECTING_POSTREQ:
+                    if self.mouse_state == MouseState.SELECTING_PREREQ or self.mouse_state == MouseState.SELECTING_POSTREQ or self.mouse_state == MouseState.DELETING_CONNECTIONS:
                         if item == self.selected_node:
                             return
                         self.complete_node_selection(item)
@@ -197,10 +197,11 @@ class MainWindow(QMainWindow):
         delete_node_action = QAction("Delete node", self)
         set_prereq_action = QAction("Set node as prerequisite", self)
         set_postreq_action = QAction("Set node as postrequisite", self)
-
+        delete_connections_action = QAction("Delete node as pre- or postrequisite", self)
         menu.addAction(delete_node_action)
         menu.addAction(set_prereq_action)
         menu.addAction(set_postreq_action)
+        menu.addAction(delete_connections_action)
 
         action = menu.exec_(screen_pos)  # create the menu using screen position
 
@@ -210,6 +211,8 @@ class MainWindow(QMainWindow):
             self.begin_set_prereq(node)
         elif action == set_postreq_action:
             self.begin_set_postreq(node)
+        elif action == delete_connections_action:
+            self.begin_delete_connections(node)
 
     def add_skill(self, scene_pos):
         # Adds a blank skill node to the canvas using scene coordinates.
@@ -290,12 +293,12 @@ class MainWindow(QMainWindow):
 
     def save_skill_tree(self, filepath):
         # Saves all skill nodes and their upgrade info to a JSON file.
-        data = []
+        self.update_node_ids()
         skill_nodes = [item for item in self.scene.items() if isinstance(item, SkillNode)]
-        save_data = {"current_node_id": self.current_node_id, "nodes": []}  # store highest node id
+        save_data = {"nodes": []}
         for node in skill_nodes:
             node_data = {
-                "node_id": node.node_id,  # ✅ Save unique node ID
+                "node_id": node.node_id,
                 "x": node.pos().x(),
                 "y": node.pos().y(),
                 "upgrade": {
@@ -311,6 +314,19 @@ class MainWindow(QMainWindow):
 
         print(f"Skill tree saved to {filepath}!")
 
+    def update_node_ids(self):
+        # update the id of all nodes based on their x,y coordinates
+        skill_nodes = sorted(
+            [item for item in self.scene.items() if isinstance(item, SkillNode)],
+            key=lambda node: (node.pos().y(), node.pos().x())  # Sort by Y first, then X
+        )
+        # Assign new sequential IDs
+        for new_id, node in enumerate(skill_nodes):
+            node.change_id(new_id)
+        # Update the current_node_id to reflect the highest ID + 1
+        self.current_node_id = len(skill_nodes)
+        print("Node IDs updated")
+
     def auto_save_skill_tree(self):
         temp_file = "skill_tree/_temp_skill_tree.json"
         self.save_skill_tree(temp_file)  # Pass temp file path
@@ -319,21 +335,35 @@ class MainWindow(QMainWindow):
         save_file = "skill_tree/skill_tree.json"
         temp_file = "skill_tree/_temp_skill_tree.json"
         self.save_skill_tree(save_file)  # Save to permanent file
-        os.remove(temp_file) # get rid of temp file
+
+        if os.path.exists(temp_file):
+            os.remove(temp_file)  # get rid of temp file
 
 
     def load_skill_tree(self):
         # Loads skill nodes from a JSON file (if it exists) and adds them to the scene.
         # Called on startup
-        if not os.path.exists("skill_tree/skill_tree.json"):
+        save_file = "skill_tree/skill_tree.json"
+        if not os.path.exists(save_file):
             return  # No save file, do nothing
 
+        # Generate a backup file with timestamp
+        #timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        backup_file = f"skill_tree/skill_tree_BACKUP.json"
+        try:
+            with open(save_file, "r") as original, open(backup_file, "w") as backup:
+                data = original.read()
+                backup.write(data)
+            print(f"Backup created: {backup_file}")
+        except Exception as e:
+            print(f"Error creating backup: {e}")
+
+        # Proceed with normal saving
         with open("skill_tree/skill_tree.json", "r") as file:
             save_data = json.load(file)
-        # Restore the last used node_id to prevent ID duplication
-        self.current_node_id = save_data.get("current_node_id", 0)
+        # Restore the last highest node_id to prevent ID duplication
+        self.current_node_id = max((node["node_id"] for node in save_data["nodes"]), default=-1) + 1
         node_list = {}  # Map node_id to node objects
-
         # Load Nodes
         for node_data in save_data["nodes"]:
             node_id = node_data["node_id"]
@@ -405,6 +435,13 @@ class MainWindow(QMainWindow):
         self.temp_line = ConnectionLine(node)
         self.scene.addItem(self.temp_line)
 
+
+    def begin_delete_connections(self, node):
+        # Begins process of deleting connections of selected node to another
+        self.mouse_state = MouseState.DELETING_CONNECTIONS
+        self.update_mouse_state_label()
+        self.selected_node = node
+
     def complete_node_selection(self, node):
         # Complete setting pre/postreq and finalized the connection line
         if node == self.selected_node:
@@ -413,6 +450,8 @@ class MainWindow(QMainWindow):
             self.selected_node.add_prerequisite(node)
         elif self.mouse_state == MouseState.SELECTING_POSTREQ:
             self.selected_node.add_postrequisite(node)
+        elif self.mouse_state == MouseState.DELETING_CONNECTIONS:
+            self.selected_node.delete_connections(node)
 
         if self.temp_line:
             self.delete_temp_line()
@@ -423,7 +462,8 @@ class MainWindow(QMainWindow):
             MouseState.DRAGGING: "DRAGGING",
             MouseState.PANNING: "PANNING",
             MouseState.SELECTING_PREREQ: f"SELECTING PREREQ: {self.selected_node.upgrade.name if self.selected_node else None}",
-            MouseState.SELECTING_POSTREQ: "SELECTING POSTREQ"
+            MouseState.SELECTING_POSTREQ: "SELECTING POSTREQ",
+            MouseState.DELETING_CONNECTIONS: "DELETING CONNECTIONS"
         }.get(self.mouse_state, "UNKNOWN")
 
         self.mouse_state_label.setText(f"Mouse State: {state_text}")
